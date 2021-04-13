@@ -1,0 +1,46 @@
+---
+
+- name: patch linux vmware vms
+  hosts: all
+  tasks:
+  - name: check for updates
+    yum:
+      list: updates
+    register: available_patches
+
+  - name: find the vm folder in vmware
+    vmware_guest_find:
+      hostname: 
+      username: 
+      password: 
+      validate_certs: no
+      name: "{{ inventory_hostname }}"
+    delegate_to: localhost
+    register: vm_folder
+    when: available_patches.results | length > 0
+
+  - name: create a snapshot in vmware
+    vmware_guest_snapshot:
+      hostname: 
+      username: 
+      password: 
+      validate_certs: no
+      datacenter: demolab
+      folder: "{{ vm_folder.folders }}"
+      name: "{{ inventory_hostname }}"
+      state: present
+      snapshot_name: "Ansible Automation patching"
+      description: "Ansible Automation patching"
+    delegate_to: localhost
+    when: available_patches.results | length > 0
+
+  - name: yum update
+    yum:
+      name: '*'
+      state: latest
+    register: patched
+    when: available_patches.results | length > 0
+
+  - name: reboot
+    reboot:
+    when: patched is changed
